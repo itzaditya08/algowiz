@@ -1,113 +1,87 @@
 import React from 'react';
-import { getProcessColor } from '../../utils/helpers';
-import { Timer, Rss, Clock } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const MetricCard = ({ title, value, icon, colorClass }) => (
-    <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg flex items-center gap-4 border border-slate-200 dark:border-slate-700">
-        <div className={`p-3 rounded-full bg-opacity-10 ${colorClass.bg} ${colorClass.text}`}>
-            {icon}
-        </div>
-        <div>
-            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{title}</span>
-            <span className={`block text-2xl font-bold ${colorClass.text}`}>{value}</span>
-        </div>
-    </div>
-);
-
-const GanttChart = ({ chartData, totalExecutionTime }) => (
-    <div>
-        <h3 className="text-lg font-bold mb-3 text-slate-800 dark:text-slate-200">Gantt Chart</h3>
-        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-lg p-2">
-            <div className="relative flex w-full h-12">
-                {chartData.map((block, index) => (
-                    <div
-                        key={index}
-                        className={`flex items-center justify-center text-white text-sm font-semibold rounded-sm border-2 border-white/20 ${getProcessColor(block.processId)}`}
-                        style={{ width: `${(block.end - block.start) / totalExecutionTime * 100}%` }}
-                        title={`${block.processId}: ${block.start}ms - ${block.end}ms`}
-                    >
-                        {block.processId !== 'Idle' && block.processId}
-                    </div>
-                ))}
-            </div>
-            <div className="relative flex w-full h-6">
-                {chartData.map((block, index) => (
-                    <div
-                        key={index}
-                        className="relative"
-                        style={{ width: `${(block.end - block.start) / totalExecutionTime * 100}%` }}
-                    >
-                        {index === 0 && (
-                            <div className="absolute top-0 left-0 -translate-x-1/2 flex flex-col items-center">
-                                <div className="h-2 w-0.5 bg-slate-400"></div>
-                                <span className="text-xs text-slate-500">{block.start}</span>
-                            </div>
-                        )}
-                        <div className="absolute top-0 right-0 translate-x-1/2 flex flex-col items-center">
-                            <div className="h-2 w-0.5 bg-slate-400"></div>
-                            <span className="text-xs text-slate-500">{block.end}</span>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    </div>
-);
-
-const ProcessTable = ({ metrics }) => {
-    const headers = ["Process", "Arrival", "Burst", "Completion", "Waiting", "Turnaround", "Response"];
+const CPU_SchedulingVisualizer = ({ time, readyQueue, activeProcessId, ganttChart, processesState }) => {
     return (
-        <div>
-            <h3 className="text-lg font-bold mb-3 text-slate-800 dark:text-slate-200">Process Metrics</h3>
-            <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-lg">
-                <table className="min-w-full">
-                    <thead className="bg-slate-100 dark:bg-slate-800">
+        <div className="flex flex-col w-full h-full p-4 space-y-6">
+            
+            {/* CPU Clock and Active Core */}
+            <div className="flex items-center space-x-6">
+                <div className="flex flex-col items-center justify-center p-4 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl w-32 shrink-0">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Clock</span>
+                    <span className="text-3xl font-black text-primary-blue">{time}ms</span>
+                </div>
+
+                <div className="flex-1 flex flex-col justify-center min-h-[90px] p-4 bg-gray-50 dark:bg-gray-900 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl">
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Executing (CPU Core)</span>
+                    {activeProcessId ? (
+                        <motion.div 
+                            key={activeProcessId}
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="px-6 py-2 bg-yellow-400 text-gray-900 font-black rounded-lg shadow-md self-start"
+                        >
+                            Process {activeProcessId}
+                        </motion.div>
+                    ) : (
+                        <span className="text-sm font-bold text-gray-400 italic">Idle</span>
+                    )}
+                </div>
+            </div>
+
+            {/* Ready Queue */}
+            <div className="w-full">
+                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Ready Queue</h4>
+                <div className="flex gap-2 p-3 bg-gray-100 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 min-h-[60px] overflow-x-auto items-center">
+                    <AnimatePresence mode="popLayout">
+                        {readyQueue.length === 0 && <span className="text-xs text-gray-400 italic w-full text-center">Empty</span>}
+                        {readyQueue.map(pid => (
+                            <motion.div
+                                layout
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, scale: 0.5 }}
+                                key={`rq-${pid}-${Math.random()}`}
+                                className="px-4 py-1.5 bg-primary-blue text-white rounded-md font-bold text-sm shrink-0 shadow-sm"
+                            >
+                                P{pid}
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
+                </div>
+            </div>
+
+            {/* Process Metrics Table */}
+            <div className="w-full overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+                <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-gray-100 dark:bg-gray-800 text-xs font-bold uppercase tracking-wider text-gray-500">
                         <tr>
-                            {headers.map(header => (
-                                <th key={header} className="px-4 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                    {header}
-                                </th>
-                            ))}
+                            <th className="p-3">Process</th>
+                            <th className="p-3">Arrival</th>
+                            <th className="p-3">Burst</th>
+                            <th className="p-3">Progress</th>
+                            <th className="p-3">TAT</th>
+                            <th className="p-3">WT</th>
                         </tr>
                     </thead>
-                    <tbody className="bg-white dark:bg-slate-900/50 divide-y divide-slate-200 dark:divide-slate-700">
-                        {metrics.map((p) => (
-                            <tr key={p.name} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                <td className="p-4 whitespace-nowrap text-sm font-medium text-slate-800 dark:text-slate-200">{p.name}</td>
-                                <td className="p-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{p.arrivalTime}</td>
-                                <td className="p-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{p.burstTime}</td>
-                                <td className="p-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{p.completionTime}</td>
-                                <td className="p-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{p.waitingTime}</td>
-                                <td className="p-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{p.turnaroundTime}</td>
-                                <td className="p-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{p.responseTime}</td>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {processesState.map((p) => (
+                            <tr key={p.id} className={activeProcessId === p.id ? 'bg-primary-blue/5 dark:bg-primary-blue/10' : ''}>
+                                <td className="p-3 font-bold">P{p.id}</td>
+                                <td className="p-3">{p.arrivalTime}ms</td>
+                                <td className="p-3">{p.burstTime}ms</td>
+                                <td className="p-3 w-40">
+                                    <div className="w-full bg-gray-200 dark:bg-gray-700 h-2 rounded-full overflow-hidden">
+                                        <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${((p.burstTime - p.remainingTime) / p.burstTime) * 100}%` }} />
+                                    </div>
+                                </td>
+                                <td className="p-3 font-mono">{p.completionTime > 0 ? `${p.turnaroundTime}ms` : '-'}</td>
+                                <td className="p-3 font-mono">{p.completionTime > 0 ? `${p.waitingTime}ms` : '-'}</td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
-        </div>
-    );
-};
-
-const CPU_SchedulingVisualizer = ({ data }) => {
-    if (!data) return null;
-
-    const { ganttChart, processMetrics, avgWaitingTime, avgTurnaroundTime, totalExecutionTime } = data;
-
-    return (
-        <div className="w-full space-y-6">
-            {/* Top Metrics Section */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <MetricCard title="Avg Waiting Time" value={avgWaitingTime.toFixed(2)} icon={<Clock size={20} />} colorClass={{ text: 'text-indigo-500', bg: 'bg-indigo-500' }} />
-                <MetricCard title="Avg Turnaround Time" value={avgTurnaroundTime.toFixed(2)} icon={<Rss size={20} />} colorClass={{ text: 'text-emerald-500', bg: 'bg-emerald-500' }} />
-                <MetricCard title="Total Execution Time" value={totalExecutionTime} icon={<Timer size={20} />} colorClass={{ text: 'text-amber-500', bg: 'bg-amber-500' }} />
-            </div>
-
-            {/* Gantt Chart Section */}
-            <GanttChart chartData={ganttChart} totalExecutionTime={totalExecutionTime} />
-
-            {/* Process Metrics Table */}
-            <ProcessTable metrics={processMetrics} />
         </div>
     );
 };

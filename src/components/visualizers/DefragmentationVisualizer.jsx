@@ -1,64 +1,72 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const DefragmentationVisualizer = ({ memoryState, totalMemorySize, highlightedBlockIndex, nextFitPointerStart }) => {
+const DefragmentationVisualizer = ({ stepData }) => {
+    if (!stepData) return <div className="flex items-center justify-center h-full text-gray-400">Initialize to start...</div>;
+
+    const { blocks, activeProcess } = stepData;
+    const totalMemory = blocks.reduce((acc, b) => acc + b.size, 0);
+
     return (
-        <div className="w-full flex justify-center items-start py-2 px-8 min-h-[500px] h-full">
-            {/* Embedded CSS for highlight animation */}
-            <style>
-                {`
-                @keyframes pulse-highlight {
-                    0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
-                    50% { box-shadow: 0 0 20px 8px rgba(99, 102, 241, 0.5); }
-                }
-                .highlighted-block {
-                    animation: pulse-highlight 1.5s ease-out;
-                    z-index: 10;
-                }
-                `}
-            </style>
+        <div className="flex flex-col items-center w-full h-full p-6 space-y-10">
             
-            {/* Memory Bar */}
-            <div className="relative w-full max-w-[150px] h-full bg-slate-200 dark:bg-slate-700/50 rounded-lg shadow-inner overflow-hidden flex flex-col justify-end">
-                {memoryState.map((block, index) => {
-                    const heightPercentage = (block.size / totalMemorySize) * 100;
-                    const blockColor = block.type === 'allocated' 
-                        ? 'bg-indigo-600' 
-                        : 'bg-slate-300 dark:bg-slate-600';
-
-                    return (
-                        <div
-                            key={block.id + '-' + index}
-                            className={`relative w-full flex flex-col justify-center items-center text-center border-t border-slate-400/50 dark:border-slate-800/80 box-border transition-all duration-500 ease-in-out ${blockColor} ${highlightedBlockIndex === index ? 'highlighted-block' : ''}`}
-                            style={{ height: `${heightPercentage}%` }}
+            {/* Incoming Process Header */}
+            <div className="flex flex-col items-center justify-center h-24">
+                <AnimatePresence mode="wait">
+                    {activeProcess ? (
+                        <motion.div 
+                            key={activeProcess.id}
+                            initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }}
+                            className="px-6 py-3 bg-yellow-400 text-gray-900 rounded-xl font-black shadow-lg"
                         >
-                            {heightPercentage > 5 && (
-                                <div className="text-white text-[10px] leading-tight font-semibold p-1 break-words">
-                                    {block.type === 'allocated' && <span>{block.id}</span>}
-                                    <br />
-                                    <span>{block.size}KB</span>
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
-                
-                {/* Next Fit Pointer */}
-                {nextFitPointerStart !== null && (
-                     <div
-                        className="absolute -left-4 -right-4 h-0.5 bg-amber-400 z-20 transition-all duration-500 ease-out"
-                        style={{ bottom: `${(nextFitPointerStart / totalMemorySize) * 100}%` }}
-                    >
-                        <div className="absolute -left-1 -top-1 w-2 h-2 bg-amber-400 rounded-full"></div>
-                        <div className="absolute -right-1 -top-1 w-2 h-2 bg-amber-400 rounded-full"></div>
-                    </div>
-                )}
+                            Process {activeProcess.id} requires {activeProcess.size}KB
+                        </motion.div>
+                    ) : (
+                        <div className="text-gray-400 italic text-sm">Waiting for allocation step...</div>
+                    )}
+                </AnimatePresence>
             </div>
 
-            {/* Address Labels */}
-            <div className="absolute top-0 right-0 h-full w-10 flex flex-col justify-between text-xs text-slate-500 dark:text-slate-400 py-2">
-                <span>0KB</span>
-                <span className="-translate-y-1/2">{Math.round(totalMemorySize / 2)}KB</span>
-                <span>{totalMemorySize}KB</span>
+            {/* Linear Memory Block Representation */}
+            <div className="w-full max-w-4xl relative">
+                <div className="flex w-full h-32 bg-gray-200 dark:bg-gray-800 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-700 shadow-inner">
+                    <AnimatePresence>
+                        {blocks.map((block, idx) => {
+                            const widthPercent = (block.size / totalMemory) * 100;
+                            return (
+                                <motion.div
+                                    layout
+                                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                                    key={`block-${idx}-${block.processId || 'free'}`}
+                                    className={`relative h-full flex flex-col items-center justify-center border-r border-gray-300/50 dark:border-gray-700/50 ${
+                                        block.isFree ? 'bg-transparent text-gray-400' : 'bg-primary-blue text-white shadow-lg'
+                                    }`}
+                                    style={{ width: `${widthPercent}%` }}
+                                >
+                                    {/* Data Labels inside block */}
+                                    {widthPercent > 5 && (
+                                        <>
+                                            <span className="font-bold text-lg">{block.isFree ? 'Free' : `P${block.processId}`}</span>
+                                            <span className={`text-xs ${block.isFree ? 'text-gray-400' : 'text-primary-blue-200'}`}>{block.size}KB</span>
+                                        </>
+                                    )}
+                                    
+                                    {/* Hatch pattern for free space */}
+                                    {block.isFree && (
+                                        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #000 25%, transparent 25%, transparent 75%, #000 75%, #000)', backgroundSize: '10px 10px' }}></div>
+                                    )}
+                                </motion.div>
+                            );
+                        })}
+                    </AnimatePresence>
+                </div>
+                
+                {/* Metric Ruler Base */}
+                <div className="flex justify-between w-full mt-2 text-[10px] text-gray-400 font-mono">
+                    <span>0KB</span>
+                    <span>Total: {totalMemory}KB</span>
+                </div>
             </div>
         </div>
     );

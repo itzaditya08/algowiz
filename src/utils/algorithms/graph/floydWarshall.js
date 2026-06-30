@@ -1,68 +1,44 @@
-import { Graph } from './index.js';
+export const generateFloydWarshallSteps = (graph) => {
+  const steps = [];
+  const dist = {};
+  const nodes = graph.nodes.map(n => n.id);
 
-class FloydWarshall {
-    constructor(graph) {
-        this.graph = new Graph();
-        Object.assign(this.graph, graph);
-        this.nodes = Object.keys(this.graph.nodes);
-        this.dist = {};
-        this.k = 0;
-        this.i = 0;
-        this.j = 0;
-        this.isComplete = false;
+  // Initialize Distance Matrix
+  nodes.forEach(u => {
+    dist[u] = {};
+    nodes.forEach(v => {
+      dist[u][v] = u === v ? 0 : Infinity;
+    });
+  });
 
-        this.nodes.forEach(u => {
-            this.dist[u] = {};
-            this.nodes.forEach(v => {
-                this.dist[u][v] = (u === v) ? 0 : Infinity;
-            });
-        });
+  graph.edges.forEach(edge => {
+    dist[edge.source][edge.target] = edge.weight;
+    dist[edge.target][edge.source] = edge.weight; // Undirected
+  });
 
-        this.graph.edges.forEach(edge => {
-            if (this.dist[edge.from][edge.to] > edge.weight) {
-                 this.dist[edge.from][edge.to] = edge.weight;
-            }
-        });
-    }
+  steps.push({ activeNode: null, visitedNodes: [], activeEdges: [], distances: {}, message: `Initialized Adjacency Matrix.` });
 
-    step() {
-        if (this.isComplete) {
-            return { isComplete: true, details: 'Floyd-Warshall algorithm complete.', graphState: this.graph, metrics: { distanceMatrix: this.dist } };
+  // Algorithm: Pick k, then update all pairs (i, j)
+  for (const k of nodes) {
+    for (const i of nodes) {
+      for (const j of nodes) {
+        if (dist[i][k] !== Infinity && dist[k][j] !== Infinity && dist[i][k] + dist[k][j] < dist[i][j]) {
+          
+          const edge1 = [i, k].sort().join('-');
+          const edge2 = [k, j].sort().join('-');
+          
+          steps.push({ 
+            activeNode: k, // Highlight intermediate node
+            visitedNodes: [i, j], // Highlight source and dest
+            activeEdges: [edge1, edge2], 
+            distances: {}, // We omit the full matrix from UI distances for canvas clarity
+            message: `Via ${k}: Path ${i}->${j} improved to ${dist[i][k] + dist[k][j]}`
+          });
+          
+          dist[i][j] = dist[i][k] + dist[k][j];
         }
-        
-        const kNode = this.nodes[this.k];
-        const iNode = this.nodes[this.i];
-        const jNode = this.nodes[this.j];
-        
-        if (this.i < this.nodes.length) {
-            if (this.j < this.nodes.length) {
-                if (this.dist[iNode][kNode] !== Infinity && this.dist[kNode][jNode] !== Infinity) {
-                    const newDist = this.dist[iNode][kNode] + this.dist[kNode][jNode];
-                    if (newDist < this.dist[iNode][jNode]) {
-                        this.dist[iNode][jNode] = newDist;
-                        this.j++;
-                        return { isComplete: false, details: `Updating path from ${iNode} to ${jNode} via intermediate node ${kNode}. New distance: ${newDist}.`, graphState: this.graph };
-                    }
-                }
-                this.j++;
-                return { isComplete: false, details: `Checking path from ${iNode} to ${jNode} via intermediate node ${kNode}. No update needed.`, graphState: this.graph };
-            } else {
-                this.i++;
-                this.j = 0;
-                return this.step();
-            }
-        } else {
-            this.k++;
-            this.i = 0;
-            this.j = 0;
-            if (this.k < this.nodes.length) {
-                return this.step();
-            } else {
-                this.isComplete = true;
-                return { isComplete: true, details: 'Floyd-Warshall algorithm complete.', graphState: this.graph, metrics: { distanceMatrix: this.dist } };
-            }
-        }
+      }
     }
-}
-
-export default FloydWarshall;
+  }
+  return steps;
+};

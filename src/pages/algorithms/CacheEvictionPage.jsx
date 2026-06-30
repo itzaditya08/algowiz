@@ -1,128 +1,128 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import VisualizerLayout from '../../components/visualizer-core/VisualizerLayout';
+import ControlPanel from '../../components/visualizer-core/ControlPanel';
+import InfoPanel from '../../components/visualizer-core/InfoPanel';
+import CanvasArea from '../../components/visualizer-core/CanvasArea';
 import CacheEvictionVisualizer from '../../components/visualizers/CacheEvictionVisualizer';
-import { fifo, lru, lfu, random } from '../../utils/algorithms/cache';
-import { SlidersHorizontal, ListChecks, Database, Activity, History } from 'lucide-react';
 
-const cacheAlgorithms = [
-    { name: 'FIFO', func: fifo, desc: 'First-In, First-Out.' },
-    { name: 'LRU', func: lru, desc: 'Least Recently Used.' },
-    { name: 'LFU', func: lfu, desc: 'Least Frequently Used.' },
-    { name: 'Random', func: random, desc: 'Evicts a random block.' },
-];
+// Import the user's data layer functions
+import { fifo } from '../../utils/algorithms/cache/fifo';
+import { lru } from '../../utils/algorithms/cache/lru';
+import { lfu } from '../../utils/algorithms/cache/lfu';
+import { random } from '../../utils/algorithms/cache/random';
 
-const ControlCard = ({ title, icon, children }) => (
-    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
-        <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center gap-3">
-            {icon}
-            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">{title}</h2>
-        </div>
-        <div className="p-4 space-y-4">{children}</div>
-    </div>
-);
+const defaultRefString = "1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5";
 
 const CacheEvictionPage = () => {
-    const [cacheSize, setCacheSize] = useState(4);
-    const [refStringInput, setRefStringInput] = useState('1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5');
-    const [selectedAlgorithm, setSelectedAlgorithm] = useState(cacheAlgorithms[0].name);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [speed, setSpeed] = useState(60);
+    const [algorithm, setAlgorithm] = useState('LRU');
+    const [cacheSize, setCacheSize] = useState(3);
+    const [inputString, setInputString] = useState(defaultRefString);
+    
     const [steps, setSteps] = useState([]);
-    const [currentStepIndex, setCurrentStepIndex] = useState(-1);
-    const [simulationStatus, setSimulationStatus] = useState('idle');
-    const handleRunSimulation = () => { if (refStringInput === '' || cacheSize <= 0) return; const parsedRefString = refStringInput.split(/[,\s]+/).map(Number).filter(n => !isNaN(n)); const algo = cacheAlgorithms.find(a => a.name === selectedAlgorithm); const generatedSteps = algo.func(parsedRefString, cacheSize); setSteps(generatedSteps); setCurrentStepIndex(generatedSteps.length - 1); setSimulationStatus('finished'); };
-    const handleStepByStep = () => { if (simulationStatus === 'idle') { if (refStringInput === '' || cacheSize <= 0) return; const parsedRefString = refStringInput.split(/[,\s]+/).map(Number).filter(n => !isNaN(n)); const algo = cacheAlgorithms.find(a => a.name === selectedAlgorithm); const generatedSteps = algo.func(parsedRefString, cacheSize); setSteps(generatedSteps); setCurrentStepIndex(0); setSimulationStatus('running'); } else if (currentStepIndex < steps.length - 1) { setCurrentStepIndex(prevIndex => prevIndex + 1); } else { setSimulationStatus('finished'); } };
-    const handleReset = () => { setCacheSize(4); setRefStringInput('1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5'); setSelectedAlgorithm(cacheAlgorithms[0].name); setSteps([]); setCurrentStepIndex(-1); setSimulationStatus('idle'); };
+    const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
-    const currentStepData = steps[currentStepIndex];
-    const metrics = steps.length > 0 ? steps[steps.length - 1] : null;
-    const refStringArray = refStringInput.split(/[,\s]+/).map(Number).filter(n => !isNaN(n));
-    const totalRequests = refStringArray.length;
+    const initVisualizer = useCallback(() => {
+        setIsPlaying(false);
+        // Parse input safely
+        const refArray = inputString.split(',').map(s => s.trim()).filter(s => s !== '');
+        if (refArray.length === 0) return;
 
-    const inputBaseClass = "w-full p-2 border rounded-md bg-slate-50 dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition";
+        let generatedSteps = [];
+        if (algorithm === 'FIFO') generatedSteps = fifo(refArray, cacheSize);
+        if (algorithm === 'LRU') generatedSteps = lru(refArray, cacheSize);
+        if (algorithm === 'LFU') generatedSteps = lfu(refArray, cacheSize);
+        if (algorithm === 'Random') generatedSteps = random(refArray, cacheSize);
+        
+        setSteps(generatedSteps);
+        setCurrentStepIndex(0);
+    }, [algorithm, cacheSize, inputString]);
+
+    // Recalculate if core parameters change
+    useEffect(() => { initVisualizer(); }, [initVisualizer]);
+
+    // Playback loop
+    useEffect(() => {
+        let timer;
+        if (isPlaying && currentStepIndex < steps.length - 1) {
+            timer = setTimeout(() => { setCurrentStepIndex(p => p + 1); }, 1500 - (speed * 14));
+        } else if (currentStepIndex >= steps.length - 1) {
+            setIsPlaying(false);
+        }
+        return () => clearTimeout(timer);
+    }, [isPlaying, currentStepIndex, steps.length, speed]);
+
+    const frame = steps[currentStepIndex] || null;
+
+    const customControls = (
+        <>
+            <select 
+                value={algorithm} onChange={(e) => setAlgorithm(e.target.value)}
+                className="bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm rounded-lg px-3 py-2 outline-none cursor-pointer"
+            >
+                <option>LRU</option>
+                <option>FIFO</option>
+                <option>LFU</option>
+                <option>Random</option>
+            </select>
+            
+            <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium">Cache Size:</span>
+                <input 
+                    type="number" min="1" max="6" 
+                    value={cacheSize} onChange={(e) => setCacheSize(Number(e.target.value))}
+                    className="w-16 p-1 text-center bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg outline-none font-bold text-primary-blue"
+                />
+            </div>
+        </>
+    );
 
     return (
-        <div className="p-4 space-y-6 dark:bg-slate-900 min-h-screen">
-             <div className="text-center">
-                <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Cache Eviction Policies</h1>
-                <p className="text-md text-slate-600 dark:text-slate-400">Explore cache eviction policies like LRU, FIFO, and LFU.</p>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Controls Column */}
-                <div className="lg:col-span-1 space-y-6">
-                    <ControlCard title="Algorithm" icon={<ListChecks className="text-slate-500" />}>
-                        <div className="grid grid-cols-2 gap-2">
-                            {cacheAlgorithms.map(algo => (
-                                <label key={algo.name} className={`p-3 rounded-lg cursor-pointer transition-all border-2 text-center ${selectedAlgorithm === algo.name ? 'bg-indigo-50 dark:bg-indigo-900/50 border-indigo-500' : 'bg-slate-100 dark:bg-slate-700/50 border-transparent hover:border-slate-300 dark:hover:border-slate-600'}`}>
-                                    <input type="radio" name="cacheAlgorithm" value={algo.name} checked={selectedAlgorithm === algo.name} onChange={(e) => setSelectedAlgorithm(e.target.value)} className="hidden"/>
-                                    <span className="font-semibold text-slate-800 dark:text-slate-200 block">{algo.name}</span>
-                                    <span className="text-xs text-slate-500 dark:text-slate-400">{algo.desc}</span>
-                                </label>
-                            ))}
-                        </div>
-                    </ControlCard>
-
-                    <ControlCard title="Configuration" icon={<SlidersHorizontal className="text-slate-500" />}>
-                        <div>
-                            <label htmlFor="cacheSize" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">Cache Size</label>
-                            <input type="number" id="cacheSize" value={cacheSize} onChange={(e) => setCacheSize(Math.max(1, parseInt(e.target.value)))} min="1" className={inputBaseClass} />
-                        </div>
-                        <div>
-                            <label htmlFor="refString" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">Reference String</label>
-                            <input type="text" id="refString" value={refStringInput} onChange={(e) => setRefStringInput(e.target.value)} placeholder="e.g., 1, 2, 3, 4, 1" className={inputBaseClass} />
-                        </div>
-                        <div className="grid grid-cols-3 gap-2 pt-2">
-                            <button onClick={handleRunSimulation} className="bg-indigo-600 text-white p-2 rounded-md hover:bg-indigo-700 transition font-semibold disabled:opacity-50" disabled={simulationStatus === 'running'}>Run</button>
-                            <button onClick={handleStepByStep} className="bg-emerald-500 text-white p-2 rounded-md hover:bg-emerald-600 transition font-semibold disabled:opacity-50" disabled={simulationStatus === 'finished'}>Step</button>
-                            <button onClick={handleReset} className="bg-rose-500 text-white p-2 rounded-md hover:bg-rose-600 transition font-semibold">Reset</button>
-                        </div>
-                    </ControlCard>
-
-                    {metrics && (
-                        <ControlCard title="Performance" icon={<Activity className="text-slate-500" />}>
-                            <div className="text-sm space-y-2 text-slate-700 dark:text-slate-300">
-                                <div className="flex justify-between"><span>Total Requests:</span><span className="font-bold">{totalRequests}</span></div>
-                                <div className="flex justify-between text-emerald-600 dark:text-emerald-400"><span>Cache Hits:</span><span className="font-bold">{metrics.totalHits}</span></div>
-                                <div className="flex justify-between text-rose-600 dark:text-rose-400"><span>Cache Misses:</span><span className="font-bold">{metrics.totalMisses}</span></div>
-                                <div className="flex justify-between"><span>Hit Ratio:</span><span className="font-bold font-mono">{totalRequests > 0 ? ((metrics.totalHits / totalRequests) * 100).toFixed(1) : 0}%</span></div>
+        <VisualizerLayout 
+            controls={
+                <ControlPanel 
+                    isPlaying={isPlaying} onPlayPause={() => setIsPlaying(!isPlaying)}
+                    onReset={initVisualizer}
+                    onStep={() => { setIsPlaying(false); if (currentStepIndex < steps.length - 1) setCurrentStepIndex(p => p + 1); }}
+                    speed={speed} onSpeedChange={setSpeed}
+                >
+                    {customControls}
+                </ControlPanel>
+            }
+            info={
+                <div className="flex flex-col gap-4 h-full">
+                    <InfoPanel 
+                        title={`${algorithm} Eviction`}
+                        description="Manages limited high-speed memory. Determines which block to throw out to make room for a new block when the cache is full."
+                        timeComplexity="O(1) to O(N) per fault"
+                        spaceComplexity="O(Cache Size)"
+                        currentStepMsg={frame ? frame.action : "Ready"}
+                    />
+                    
+                    <div className="glass-panel rounded-2xl p-4 border border-gray-200/50 dark:border-gray-700/50 shadow-md flex-1">
+                        <h3 className="text-sm font-bold mb-1">Reference Sequence</h3>
+                        <p className="text-[11px] text-gray-500 mb-2">Comma separated requests.</p>
+                        <textarea
+                            value={inputString}
+                            onChange={(e) => setInputString(e.target.value)}
+                            className="w-full h-20 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-2 text-sm font-mono outline-none focus:border-primary-blue resize-none"
+                        />
+                        {frame && (
+                            <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                                <div className="p-2 bg-emerald-100/50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-lg font-bold text-center">Hits: {frame.totalHits}</div>
+                                <div className="p-2 bg-rose-100/50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 rounded-lg font-bold text-center">Faults: {frame.totalMisses}</div>
                             </div>
-                        </ControlCard>
-                    )}
+                        )}
+                    </div>
                 </div>
-
-                {/* Right Content Column */}
-                <div className="lg:col-span-2 space-y-6">
-                    <ControlCard title="Simulation" icon={<Database className="text-slate-500" />}>
-                        <div className="flex items-center justify-center min-h-[250px]">
-                            {currentStepData ? <CacheEvictionVisualizer stepData={currentStepData} selectedAlgorithm={selectedAlgorithm} /> : <p className="text-slate-500">Run or step through a simulation to begin.</p>}
-                        </div>
-                    </ControlCard>
-
-                    {steps.length > 0 && (
-                        <ControlCard title="History" icon={<History className="text-slate-500" />}>
-                            <div className="overflow-auto max-h-96 rounded-lg border dark:border-slate-700">
-                                <table className="min-w-full table-auto text-sm">
-                                    <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800">
-                                        <tr className="text-left font-semibold text-slate-500 dark:text-slate-400">
-                                            <th className="p-2">Step</th><th className="p-2">Request</th><th className="p-2">Cache State</th><th className="p-2">Result</th><th className="p-2">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="dark:text-slate-300">
-                                        {steps.slice(0, currentStepIndex + 1).map((step, index) => (
-                                            <tr key={index} className="border-t border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                                                <td className="p-2 text-slate-500 font-mono">{step.step}</td>
-                                                <td className="p-2 font-bold">{step.requestedBlock}</td>
-                                                <td className="p-2 font-mono">[{step.cacheState.map(item => item.block).join(', ')}]</td>
-                                                <td className={`p-2 font-bold ${step.result === 'hit' ? 'text-emerald-500' : 'text-rose-500'}`}>{step.result}</td>
-                                                <td className="p-2 text-slate-500">{step.action}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </ControlCard>
-                    )}
-                </div>
-            </div>
-        </div>
+            }
+            canvas={
+                <CanvasArea>
+                    <CacheEvictionVisualizer stepData={frame} selectedAlgorithm={algorithm} />
+                </CanvasArea>
+            }
+        />
     );
 };
 

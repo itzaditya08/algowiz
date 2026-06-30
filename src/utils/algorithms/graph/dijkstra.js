@@ -1,65 +1,41 @@
-import { Graph } from './index.js';
+import { createAdjacencyList } from './graphData';
 
-class Dijkstra {
-    constructor(graph, startNode) {
-        this.graph = new Graph();
-        Object.assign(this.graph, graph);
-        this.startNode = startNode;
-        this.distances = {};
-        this.previous = {};
-        this.visited = new Set();
-        this.isComplete = false;
-        
-        Object.keys(this.graph.nodes).forEach(node => {
-            this.distances[node] = Infinity;
-            this.previous[node] = null;
-            this.graph.nodes[node].distance = Infinity;
-        });
+export const generateDijkstraSteps = (graph, startNodeId) => {
+  const steps = [];
+  const adjList = createAdjacencyList(graph.nodes, graph.edges);
+  const distances = {};
+  const visited = new Set();
+  
+  graph.nodes.forEach(n => distances[n.id] = Infinity);
+  distances[startNodeId] = 0;
 
-        this.distances[startNode] = 0;
-        this.graph.nodes[startNode].distance = 0;
+  steps.push({ activeNode: null, visitedNodes: [], activeEdges: [], distances: { ...distances }, message: `Initialized distances.` });
+
+  while (visited.size < graph.nodes.length) {
+    let minNode = null, minDistance = Infinity;
+    for (const nodeId in distances) {
+      if (!visited.has(nodeId) && distances[nodeId] <= minDistance) {
+        minDistance = distances[nodeId];
+        minNode = nodeId;
+      }
     }
 
-    step() {
-        if (this.isComplete) {
-            return { isComplete: true, details: 'Dijkstra\'s algorithm complete.', graphState: this.graph, metrics: { distances: this.distances, paths: this.previous } };
-        }
+    if (minNode === null || minDistance === Infinity) break;
+    visited.add(minNode);
+    steps.push({ activeNode: minNode, visitedNodes: Array.from(visited), activeEdges: [], distances: { ...distances }, message: `Visiting ${minNode}.` });
 
-        const unvisitedNodes = Object.keys(this.graph.nodes).filter(node => !this.visited.has(node));
-        if (unvisitedNodes.length === 0) {
-            this.isComplete = true;
-            return { isComplete: true, details: 'Dijkstra\'s algorithm complete. All reachable nodes visited.', graphState: this.graph, metrics: { distances: this.distances, paths: this.previous } };
-        }
+    for (const neighbor of adjList[minNode]) {
+      if (visited.has(neighbor.node)) continue;
+      const newDist = distances[minNode] + neighbor.weight;
+      const edgeId = [minNode, neighbor.node].sort().join('-');
 
-        let currentNodeId = unvisitedNodes.reduce((minNode, node) => (
-            this.distances[node] < this.distances[minNode] ? node : minNode
-        ), unvisitedNodes[0]);
+      steps.push({ activeNode: minNode, visitedNodes: Array.from(visited), activeEdges: [edgeId], distances: { ...distances }, message: `Checking edge ${minNode}-${neighbor.node}.` });
 
-        if (this.distances[currentNodeId] === Infinity) {
-            this.isComplete = true;
-            return { isComplete: true, details: 'All reachable nodes visited.', graphState: this.graph, metrics: { distances: this.distances, paths: this.previous } };
-        }
-
-        this.visited.add(currentNodeId);
-        this.graph.nodes[currentNodeId].state = 'visited';
-        this.graph.nodes[currentNodeId].isHighlighted = true;
-
-        for (const neighbor of this.graph.adjList[currentNodeId]) {
-            const newDist = this.distances[currentNodeId] + neighbor.weight;
-            if (newDist < this.distances[neighbor.node]) {
-                this.distances[neighbor.node] = newDist;
-                this.previous[neighbor.node] = currentNodeId;
-                this.graph.nodes[neighbor.node].distance = newDist;
-                this.graph.nodes[neighbor.node].state = 'active';
-            }
-        }
-
-        return {
-            isComplete: false,
-            details: `Visiting node ${currentNodeId} with distance ${this.distances[currentNodeId]}.`,
-            graphState: this.graph,
-        };
+      if (newDist < distances[neighbor.node]) {
+        distances[neighbor.node] = newDist;
+        steps.push({ activeNode: neighbor.node, visitedNodes: Array.from(visited), activeEdges: [edgeId], distances: { ...distances }, message: `Updated distance of ${neighbor.node} to ${newDist}.` });
+      }
     }
-}
-
-export default Dijkstra;
+  }
+  return steps;
+};

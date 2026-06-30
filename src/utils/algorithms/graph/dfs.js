@@ -1,53 +1,29 @@
-import { Graph } from './index.js';
+import { createAdjacencyList } from './graphData';
 
-class DFS {
-    constructor(graph, startNode) {
-        this.graph = new Graph();
-        Object.assign(this.graph, graph);
-        this.startNode = startNode;
-        this.stack = [startNode];
-        this.visited = new Set();
-        this.path = [];
-        this.isComplete = false;
-        this.graph.nodes[startNode].state = 'active';
+export const generateDFSSteps = (graph, startNodeId) => {
+  const steps = [];
+  const adjList = createAdjacencyList(graph.nodes, graph.edges);
+  const visited = new Set();
+  const activeEdges = [];
+
+  const dfs = (current, parentEdge) => {
+    visited.add(current);
+    if (parentEdge) activeEdges.push(parentEdge);
+    
+    steps.push({ activeNode: current, visitedNodes: Array.from(visited), activeEdges: [...activeEdges], distances: {}, message: `Visited ${current}.` });
+
+    for (const neighbor of adjList[current]) {
+      const edgeId = [current, neighbor.node].sort().join('-');
+      
+      if (!visited.has(neighbor.node)) {
+        steps.push({ activeNode: current, visitedNodes: Array.from(visited), activeEdges: [edgeId], distances: {}, message: `Going deep into ${neighbor.node}.` });
+        dfs(neighbor.node, edgeId);
+        steps.push({ activeNode: current, visitedNodes: Array.from(visited), activeEdges: [...activeEdges], distances: {}, message: `Backtracked to ${current}.` });
+      }
     }
+  };
 
-    step() {
-        if (this.isComplete) {
-            return { isComplete: true, details: 'DFS traversal complete.', graphState: this.graph, metrics: { traversalOrder: this.path } };
-        }
-
-        if (this.stack.length === 0) {
-            this.isComplete = true;
-            return { isComplete: true, details: 'DFS traversal complete.', graphState: this.graph, metrics: { traversalOrder: this.path } };
-        }
-
-        const currentNodeId = this.stack.pop();
-        this.graph.nodes[currentNodeId].isHighlighted = false;
-
-        if (!this.visited.has(currentNodeId)) {
-            this.visited.add(currentNodeId);
-            this.path.push(currentNodeId);
-            this.graph.nodes[currentNodeId].state = 'visited';
-            this.graph.nodes[currentNodeId].isHighlighted = true;
-            
-            const neighbors = this.graph.adjList[currentNodeId] || [];
-            for (let i = neighbors.length - 1; i >= 0; i--) {
-                const neighbor = neighbors[i];
-                if (!this.visited.has(neighbor.node)) {
-                    this.stack.push(neighbor.node);
-                    this.graph.nodes[neighbor.node].state = 'active';
-                }
-            }
-            return {
-                isComplete: false,
-                details: `Visiting node ${currentNodeId}.`,
-                graphState: this.graph,
-            };
-        }
-
-        return this.step();
-    }
-}
-
-export default DFS;
+  steps.push({ activeNode: null, visitedNodes: [], activeEdges: [], distances: {}, message: `Start DFS from ${startNodeId}.` });
+  dfs(startNodeId, null);
+  return steps;
+};

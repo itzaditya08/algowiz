@@ -1,143 +1,74 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 
-const GraphVisualizer = ({ graphData, isDirected, isWeighted }) => {
-    const containerRef = useRef(null);
-    const [positionedNodes, setPositionedNodes] = useState([]);
+const GraphVisualizer = ({ graph, activeNode, visitedNodes = [], activeEdges = [], distances = {} }) => {
+  
+  const getEdgeStyle = (source, target) => {
+    const edgeId = [source, target].sort().join('-');
+    if (activeEdges.includes(edgeId)) return { stroke: '#3b82f6', strokeWidth: 4, opacity: 1, zIndex: 10 }; 
+    return { stroke: '#94a3b8', strokeWidth: 2, opacity: 0.3, zIndex: 0 }; 
+  };
 
-    const NODE_SIZE = 48;
-    const NODE_RADIUS = NODE_SIZE / 2;
+  return (
+    <div className="relative w-full h-full min-h-[500px] bg-white/50 dark:bg-gray-900/50 rounded-2xl overflow-hidden">
+      
+      {/* SVG Layer for Edges */}
+      <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+        {graph.edges.map((edge, idx) => {
+          const sourceNode = graph.nodes.find(n => n.id === edge.source);
+          const targetNode = graph.nodes.find(n => n.id === edge.target);
+          if (!sourceNode || !targetNode) return null; // Safe guard for custom input
+          const style = getEdgeStyle(edge.source, edge.target);
 
-    useEffect(() => {
-        if (containerRef.current && graphData && graphData.nodes) {
-            const containerWidth = containerRef.current.offsetWidth;
-            const containerHeight = containerRef.current.offsetHeight;
-            const nodes = graphData.nodes;
-            const numNodes = nodes.length;
+          return (
+            <g key={idx}>
+              <line
+                x1={`${sourceNode.x}%`} y1={`${sourceNode.y}%`}
+                x2={`${targetNode.x}%`} y2={`${targetNode.y}%`}
+                stroke={style.stroke} strokeWidth={style.strokeWidth} opacity={style.opacity}
+                className="transition-all duration-300 ease-in-out"
+              />
+              <circle cx={`${(sourceNode.x + targetNode.x) / 2}%`} cy={`${(sourceNode.y + targetNode.y) / 2}%`} r="12" fill="#1e293b" opacity="0.8" />
+              <text
+                x={`${(sourceNode.x + targetNode.x) / 2}%`} y={`${(sourceNode.y + targetNode.y) / 2}%`}
+                fill="white" fontSize="12" fontWeight="bold" textAnchor="middle" dominantBaseline="central"
+              >
+                {edge.weight}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
 
-            if (numNodes === 0) {
-                setPositionedNodes([]);
-                return;
-            }
+      {/* HTML Layer for Nodes */}
+      {graph.nodes.map((node) => {
+        const isVisited = visitedNodes.includes(node.id);
+        const isActive = activeNode === node.id;
+        const currentDist = distances[node.id];
 
-            // Check if nodes already have positions, if so, use them
-            if (nodes[0] && nodes[0].x !== undefined && nodes[0].y !== undefined) {
-                 setPositionedNodes(nodes);
-                 return;
-            }
+        let bgColor = 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600';
+        if (isVisited) bgColor = 'bg-emerald-500 text-white border-emerald-600';
+        if (isActive) bgColor = 'bg-yellow-400 text-gray-900 border-yellow-500 shadow-[0_0_20px_rgba(250,204,21,0.6)]';
 
-            // Calculate positions if they don't exist, arranging them in a circle
-            const centerX = containerWidth / 2;
-            const centerY = containerHeight / 2;
-            const radius = Math.min(containerWidth, containerHeight) / 2 * 0.8;
-
-            const newPositionedNodes = nodes.map((node, index) => {
-                const angle = (index / numNodes) * 2 * Math.PI;
-                return {
-                    ...node,
-                    x: centerX + radius * Math.cos(angle) - NODE_RADIUS,
-                    y: centerY + radius * Math.sin(angle) - NODE_RADIUS,
-                };
-            });
-            setPositionedNodes(newPositionedNodes);
-        }
-    }, [graphData, graphData.nodes]);
-
-
-    if (!graphData || !graphData.nodes || graphData.nodes.length === 0) {
         return (
-            <div ref={containerRef} className="flex items-center justify-center h-full">
-                <p className="text-center text-slate-500">
-                    Add nodes and edges to begin visualizing.
-                </p>
-            </div>
+          <motion.div
+            key={node.id}
+            initial={false}
+            animate={{ scale: isActive ? 1.2 : 1 }}
+            className={`absolute w-12 h-12 -ml-6 -mt-6 rounded-full flex items-center justify-center border-4 font-bold text-lg z-20 transition-colors duration-300 ${bgColor}`}
+            style={{ left: `${node.x}%`, top: `${node.y}%` }}
+          >
+            {node.id}
+            {currentDist !== undefined && (
+              <div className="absolute -top-8 bg-gray-900 dark:bg-black text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap">
+                {currentDist === Infinity ? '∞' : currentDist}
+              </div>
+            )}
+          </motion.div>
         );
-    }
-
-    const edges = graphData.edges || [];
-
-    return (
-        <div ref={containerRef} className="relative w-full h-full">
-            <svg className="absolute w-full h-full pointer-events-none z-0" overflow="visible">
-                <defs>
-                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-                        <polygon points="0 0, 10 3.5, 0 7" className="fill-current text-slate-500" />
-                    </marker>
-                    <marker id="arrowhead-highlight" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-                        <polygon points="0 0, 10 3.5, 0 7" className="fill-current text-amber-500" />
-                    </marker>
-                </defs>
-                {edges.map((edge, index) => {
-                    const fromNode = positionedNodes.find(n => n.id === edge.from);
-                    const toNode = positionedNodes.find(n => n.id === edge.to);
-
-                    if (!fromNode || !toNode) return null;
-
-                    const startX = fromNode.x + NODE_RADIUS;
-                    const startY = fromNode.y + NODE_RADIUS;
-                    const endX = toNode.x + NODE_RADIUS;
-                    const endY = toNode.y + NODE_RADIUS;
-
-                    const dx = endX - startX;
-                    const dy = endY - startY;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    
-                    if (dist === 0) return null;
-
-                    const offset = NODE_RADIUS + (isDirected ? 2 : 0);
-                    const adjustedEndX = endX - (dx / dist) * offset;
-                    const adjustedEndY = endY - (dy / dist) * offset;
-
-                    const isHighlighted = edge.isHighlighted;
-
-                    return (
-                        <g key={index}>
-                            <line
-                                x1={startX}
-                                y1={startY}
-                                x2={adjustedEndX}
-                                y2={adjustedEndY}
-                                className={`stroke-current transition-all duration-300 ${isHighlighted ? 'text-amber-500' : 'text-slate-600 dark:text-slate-500'}`}
-                                strokeWidth={isHighlighted ? "3" : "1.5"}
-                                markerEnd={isDirected ? (isHighlighted ? "url(#arrowhead-highlight)" : "url(#arrowhead)") : ""}
-                            />
-                            {isWeighted && (
-                                <text
-                                    x={(startX + adjustedEndX) / 2}
-                                    y={(startY + adjustedEndY) / 2 - 10}
-                                    textAnchor="middle"
-                                    className={`fill-current text-sm font-semibold pointer-events-auto ${isHighlighted ? 'text-amber-400' : 'text-slate-400'}`}
-                                >
-                                    {edge.weight}
-                                </text>
-                            )}
-                        </g>
-                    );
-                })}
-            </svg>
-
-            {positionedNodes.map(node => (
-                <motion.div
-                    key={node.id}
-                    className={`absolute flex items-center justify-center rounded-full text-lg font-bold shadow-lg
-                        w-12 h-12 border-2
-                        ${node.state === 'visited' ? 'bg-emerald-500 text-white border-emerald-400' : 
-                          node.state === 'active' ? 'bg-amber-500 text-black border-amber-300 ring-4 ring-amber-500/30' : 
-                          'bg-slate-700 text-white border-slate-500'}
-                        transition-all duration-300 ease-out z-10`}
-                    style={{
-                        left: node.x,
-                        top: node.y,
-                        transform: node.isHighlighted ? 'scale(1.1)' : 'scale(1)',
-                    }}
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                >
-                    {node.id}
-                </motion.div>
-            ))}
-        </div>
-    );
+      })}
+    </div>
+  );
 };
 
 export default GraphVisualizer;

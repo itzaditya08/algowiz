@@ -9,7 +9,7 @@ import CacheEvictionPage from './pages/algorithms/CacheEvictionPage';
 import TreeStructuresPage from './pages/algorithms/TreeStructuresPage';
 import SearchingPage from './pages/algorithms/SearchingPage';
 import MessageQueuesPage from './pages/algorithms/MessageQueuesPage';
-import DefragmentationPage from './pages/algorithms/DefragmentationPage.jsx';
+import DefragmentationPage from './pages/algorithms/DefragmentationPage';
 import PagingPage from './pages/algorithms/PagingPage';
 import { ThemeProvider } from './contexts/ThemeContext';
 

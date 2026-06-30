@@ -1,69 +1,28 @@
-import { Graph } from './index.js';
+export const generateBellmanFordSteps = (graph, startNodeId) => {
+  const steps = [];
+  const distances = {};
+  graph.nodes.forEach(n => distances[n.id] = Infinity);
+  distances[startNodeId] = 0;
 
-class BellmanFord {
-    constructor(graph, startNode) {
-        this.graph = new Graph();
-        Object.assign(this.graph, graph);
-        this.startNode = startNode;
-        this.distances = {};
-        this.previous = {};
-        this.iterations = Object.keys(this.graph.nodes).length;
-        this.edgeIndex = 0;
-        this.isComplete = false;
-        this.edges = this.graph.edges;
+  steps.push({ activeNode: null, visitedNodes: [], activeEdges: [], distances: { ...distances }, message: `Initialized distances.` });
 
-        Object.keys(this.graph.nodes).forEach(node => {
-            this.distances[node] = Infinity;
-            this.previous[node] = null;
-            this.graph.nodes[node].distance = Infinity;
-        });
-        this.distances[startNode] = 0;
-        this.graph.nodes[startNode].distance = 0;
+  // Relax all edges V-1 times
+  for (let i = 0; i < graph.nodes.length - 1; i++) {
+    steps.push({ activeNode: null, visitedNodes: [], activeEdges: [], distances: { ...distances }, message: `Iteration ${i + 1} of V-1.` });
+    
+    for (const edge of graph.edges) {
+      // For undirected graph visualization, evaluate both directions
+      const pairs = [[edge.source, edge.target], [edge.target, edge.source]];
+      const edgeId = [edge.source, edge.target].sort().join('-');
+      
+      for (const [u, v] of pairs) {
+        if (distances[u] !== Infinity && distances[u] + edge.weight < distances[v]) {
+          steps.push({ activeNode: u, visitedNodes: [], activeEdges: [edgeId], distances: { ...distances }, message: `Relaxing edge ${u}-${v}.` });
+          distances[v] = distances[u] + edge.weight;
+          steps.push({ activeNode: v, visitedNodes: [], activeEdges: [edgeId], distances: { ...distances }, message: `Updated distance of ${v} to ${distances[v]}.` });
+        }
+      }
     }
-
-    step() {
-        if (this.isComplete) {
-            return { isComplete: true, details: 'Bellman-Ford algorithm complete.', graphState: this.graph, metrics: { distances: this.distances, paths: this.previous } };
-        }
-
-        this.graph.edges.forEach(edge => edge.isHighlighted = false);
-
-        if (this.iterations > 0) {
-            if (this.edgeIndex < this.edges.length) {
-                const edge = this.edges[this.edgeIndex];
-                const { from, to, weight } = edge;
-
-                this.graph.edges.find(e => e.from === from && e.to === to).isHighlighted = true;
-
-                if (this.distances[from] !== Infinity && this.distances[from] + weight < this.distances[to]) {
-                    this.distances[to] = this.distances[from] + weight;
-                    this.previous[to] = from;
-                    this.graph.nodes[to].distance = this.distances[to];
-                    this.graph.nodes[to].state = 'active';
-                    this.edgeIndex++;
-                    return { isComplete: false, details: `Relaxing edge (${from}, ${to}). Updated distance to ${to} is ${this.distances[to]}.`, graphState: this.graph };
-                }
-
-                this.edgeIndex++;
-                return { isComplete: false, details: `Checking edge (${from}, ${to}). No update needed.`, graphState: this.graph };
-            } else {
-                this.edgeIndex = 0;
-                this.iterations--;
-                return { isComplete: false, details: `Iteration ${Object.keys(this.graph.nodes).length - this.iterations} completed.`, graphState: this.graph };
-            }
-        }
-
-        for (const edge of this.edges) {
-            const { from, to, weight } = edge;
-            if (this.distances[from] !== Infinity && this.distances[from] + weight < this.distances[to]) {
-                this.isComplete = true;
-                return { isComplete: true, details: `Negative cycle detected! Edge (${from}, ${to}) is part of a negative cycle.`, graphState: this.graph, metrics: { hasNegativeCycle: true } };
-            }
-        }
-
-        this.isComplete = true;
-        return { isComplete: true, details: 'Bellman-Ford algorithm complete. No negative cycles detected.', graphState: this.graph, metrics: { distances: this.distances, paths: this.previous, hasNegativeCycle: false } };
-    }
-}
-
-export default BellmanFord;
+  }
+  return steps;
+};
